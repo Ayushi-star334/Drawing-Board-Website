@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Drawing App</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body {
+      background: linear-gradient(135deg, #f7f8fc, #e0eafc);
+      font-family: 'Segoe UI', sans-serif;
+      overflow-x: hidden;
+    }
+
+    h1.animated-title {
+      text-align: center;
+      font-weight: bold;
+      font-size: 3rem;
+      margin-top: 20px;
+      animation: fadeInSlide 1s ease-out;
+    }
+
+    @keyframes fadeInSlide {
+      0% { opacity: 0; transform: translateY(-20px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    #canvas {
+      border: 3px dashed #aaa;
+      border-radius: 10px;
+      background-color: #fff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      animation: fadeIn 1.2s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .toolbar {
+      background: #ffffffee;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+      animation: fadeIn 1.2s ease-in;
+    }
+
+    .toolbar button {
+      margin-bottom: 10px;
+      transition: all 0.3s ease;
+    }
+
+    .toolbar button:hover {
+      transform: scale(1.05);
+      opacity: 0.9;
+    }
+
+    .floating-icons {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+
+    .floating-icons img {
+      position: absolute;
+      width: 40px;
+      opacity: 0.2;
+      animation: float 8s infinite ease-in-out;
+    }
+
+    @keyframes float {
+      0% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(10deg); }
+      100% { transform: translateY(0px) rotate(0deg); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Floating Images -->
+  <div class="floating-icons">
+    <img src="https://cdn-icons-png.flaticon.com/128/1006/1006555.png" style="top: 50px; left: 20px;" />
+    <img src="https://cdn-icons-png.flaticon.com/128/1828/1828919.png" style="top: 150px; left: 90%;" />
+    <img src="https://cdn-icons-png.flaticon.com/128/1828/1828911.png" style="top: 300px; left: 10%;" />
+    <img src="https://cdn-icons-png.flaticon.com/128/535/535137.png" style="top: 500px; left: 85%;" />
+  </div>
+
+  <h1 class="animated-title">🎨 Let's Draw Something Cool!</h1>
+
+  <div class="container mt-4">
+    <div class="row">
+      <div class="col-md-8">
+        <canvas id="canvas" width="800" height="600"></canvas>
+      </div>
+      <div class="col-md-4">
+        <div class="toolbar">
+          <button id="draw-btn" class="btn btn-primary w-100">✏️ Draw Mode</button>
+          <label for="color-picker">Color:</label>
+          <input type="color" id="color-picker" class="form-control mb-2" value="#000000" />
+          <label for="brush-size">Brush Size:</label>
+          <input type="range" id="brush-size" class="form-range mb-3" min="1" max="30" value="5" />
+          <button id="eraser-btn" class="btn btn-warning w-100">🧽 Eraser</button>
+          <button id="clear-btn" class="btn btn-danger w-100">🧼 Clear</button>
+          <button id="undo-btn" class="btn btn-secondary w-100">↩️ Undo</button>
+          <button id="redo-btn" class="btn btn-secondary w-100">↪️ Redo</button>
+          <button id="save-btn" class="btn btn-success w-100">💾 Save</button>
+          <button id="share-btn" class="btn btn-info w-100" data-bs-toggle="modal" data-bs-target="#share-modal">📤 Share</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share Modal -->
+  <div class="modal fade" id="share-modal" tabindex="-1" aria-labelledby="share-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="share-modal-label">📤 Share Your Drawing</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body text-center">
+          <input type="text" id="title-input" class="form-control mb-3" placeholder="Enter a title for your drawing">
+          <img id="preview-img" src="" alt="Drawing preview" class="img-fluid border mb-3">
+          <button id="share-btn-modal" class="btn btn-primary">✅ Share Now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let drawing = false;
+    let lastX, lastY;
+    let isEraser = false;
+    let history = [];
+    let redoStack = [];
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const drawBtn = document.getElementById('draw-btn');
+    const saveBtn = document.getElementById('save-btn');
+    const shareBtn = document.getElementById('share-btn');
+    const titleInput = document.getElementById('title-input');
+    const shareBtnModal = document.getElementById('share-btn-modal');
+    const colorPicker = document.getElementById('color-picker');
+    const brushSize = document.getElementById('brush-size');
+    const eraserBtn = document.getElementById('eraser-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
+    const previewImg = document.getElementById('preview-img');
+
+    function saveState() {
+      history.push(canvas.toDataURL());
+      if (history.length > 20) history.shift();
+    }
+
+    function restoreState(dataURL) {
+      const img = new Image();
+      img.src = dataURL;
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+      };
+    }
+
+    drawBtn.addEventListener('click', () => {
+      drawing = true;
+      isEraser = false;
+      ctx.strokeStyle = colorPicker.value;
+      ctx.lineWidth = brushSize.value;
+      ctx.lineCap = 'round';
+    });
+
+    eraserBtn.addEventListener('click', () => {
+      isEraser = true;
+      ctx.strokeStyle = '#ffffff';
+    });
+
+    colorPicker.addEventListener('input', () => {
+      if (!isEraser) ctx.strokeStyle = colorPicker.value;
+    });
+
+    brushSize.addEventListener('input', () => {
+      ctx.lineWidth = brushSize.value;
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (drawing) {
+        lastX = e.offsetX;
+        lastY = e.offsetY;
+        saveState();
+        redoStack = [];
+      }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (drawing && lastX != null && lastY != null) {
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.stroke();
+        lastX = e.offsetX;
+        lastY = e.offsetY;
+      }
+    });
+
+    canvas.addEventListener('mouseup', () => { lastX = lastY = null; });
+    canvas.addEventListener('mouseleave', () => { lastX = lastY = null; });
+
+    clearBtn.addEventListener('click', () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      saveState();
+    });
+
+    undoBtn.addEventListener('click', () => {
+      if (history.length > 0) {
+        const lastState = history.pop();
+        redoStack.push(canvas.toDataURL());
+        restoreState(lastState);
+      }
+    });
+
+    redoBtn.addEventListener('click', () => {
+      if (redoStack.length > 0) {
+        const nextState = redoStack.pop();
+        saveState();
+        restoreState(nextState);
+      }
+    });
+
+    saveBtn.addEventListener('click', () => {
+      const dataURL = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataURL;
+      a.download = 'drawing.png';
+      a.click();
+    });
+
+    shareBtn.addEventListener('click', () => {
+      previewImg.src = canvas.toDataURL('image/png');
+    });
+
+    shareBtnModal.addEventListener('click', () => {
+      const title = titleInput.value.trim();
+      const dataURL = canvas.toDataURL('image/png');
+      if (title) {
+        alert("Drawing shared with title: " + title);
+        console.log(`Shared Drawing: ${title} | Data URL: ${dataURL}`);
+      } else {
+        alert("Please enter a title before sharing!");
+      }
+    });
+  </script>
+</body>
+</html>
